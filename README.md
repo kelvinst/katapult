@@ -9,6 +9,6 @@ https://kelvinst.github.io/katapult/#<url-encoded target>
 ```
 
 The target lives in the fragment, so it never reaches the server. For app
-schemes the tab counts down 3, 2, 1 after launching and closes itself, where
-the browser allows it. Script-ish schemes (`javascript:`, `data:`,
+schemes the tab closes itself right after launching, where the browser
+allows it. Script-ish schemes (`javascript:`, `data:`,
 `vbscript:`, `blob:`, `file:`) are refused.
