@@ -38,10 +38,17 @@
     // An app scheme leaves this tab behind. Browsers let a script close a
     // tab with a single history entry, which is what a link click opens.
     if (!["http:", "https:"].includes(scheme)) {
-      setTimeout(() => {
-        window.close();
-        status.textContent = "Launched. You can close this tab.";
-      }, 2000);
+      let left = 3;
+      const tick = () => {
+        if (left > 0) {
+          status.textContent = "Launched. Closing in " + left-- + "…";
+          setTimeout(tick, 1000);
+        } else {
+          window.close();
+          status.textContent = "Launched. You can close this tab.";
+        }
+      };
+      tick();
     }
   }
 </script>
