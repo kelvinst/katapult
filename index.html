@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Katapult</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; }
+  a { word-break: break-all; }
+  code { font-size: 0.9em; }
+</style>
+</head>
+<body>
+<p id="status">Launching…</p>
+<p id="target" hidden>If nothing happens: <a id="link"></a></p>
+<script>
+  // The target travels in the fragment, which the browser never sends to
+  // the server: https://kelvinst.github.io/katapult/#<url-encoded target>
+  const BLOCKED = ["javascript:", "data:", "vbscript:", "blob:", "file:"];
+  const status = document.getElementById("status");
+  const raw = location.hash.slice(1);
+  let target = raw;
+  try { target = decodeURIComponent(raw); } catch {}
+  const scheme = (target.match(/^[a-z][a-z0-9+.-]*:/i) || [""])[0].toLowerCase();
+
+  if (!target) {
+    status.innerHTML = "Usage: <code>/katapult/#&lt;url-encoded target&gt;</code>, any scheme (<code>obsidian://…</code>, <code>https://…</code>).";
+  } else if (!scheme || BLOCKED.includes(scheme)) {
+    status.textContent = "Refusing to launch: " + (scheme || "no scheme") + ".";
+  } else {
+    const link = document.getElementById("link");
+    link.href = target;
+    link.textContent = target;
+    document.getElementById("target").hidden = false;
+    location.replace(target);
+  }
+</script>
+</body>
+</html>
