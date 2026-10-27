@@ -35,6 +35,14 @@
     link.textContent = target;
     document.getElementById("target").hidden = false;
     location.replace(target);
+    // An app scheme leaves this tab behind. Browsers let a script close a
+    // tab with a single history entry, which is what a link click opens.
+    if (!["http:", "https:"].includes(scheme)) {
+      setTimeout(() => {
+        window.close();
+        status.textContent = "Launched. You can close this tab.";
+      }, 2000);
+    }
   }
 </script>
 </body>
