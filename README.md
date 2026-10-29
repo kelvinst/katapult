@@ -91,17 +91,25 @@ Chrome (`BROWSER_BUNDLE_ID` names the browser).
    hs -c 'hs.urlevent.setDefaultHandler("http")'
    ```
 
-3. Optionally, trust schemes you click often, so they open without asking,
-   right after the `require` in `init.lua`:
+3. Optionally, trust schemes you click often, and folders whose files
+   `file://` links may open, in `~/.config/katapult/config.json`
+   (`$XDG_CONFIG_HOME/katapult/config.json` when that is set):
+
+   ```json
+   {
+     "trusted_schemes": ["x-things"],
+     "trusted_paths": ["~/Notes", "/private/tmp/claude-501"]
+   }
+   ```
+
+   It is read on every click, so an edit applies without reloading
+   Hammerspoon; a file that does not parse trusts nothing and raises an alert.
+   A trusted path covers everything below it, with symlinks resolved (`/tmp`
+   is `/private/tmp`). The same lists can also be filled from `init.lua`,
+   after the `require`:
 
    ```lua
    katapult.trusted_schemes["x-things"] = true
-   ```
-
-   And folders whose files `file://` links open without asking (everything
-   below each folder; symlinks resolved, so `/tmp` is `/private/tmp`):
-
-   ```lua
    table.insert(katapult.trusted_paths, "~/Notes")
    ```
 

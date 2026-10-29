@@ -20,6 +20,9 @@ printf '#!/bin/sh\n' >"$files/trusted/script"
 chmod +x "$files/trusted/script"
 ln -s "$files/trusted" "$files/link"
 
+export XDG_CONFIG_HOME="$files/config"
+mkdir -p "$XDG_CONFIG_HOME/katapult"
+
 "$LUA" - "$ROOT" "$files" <<'LUA'
 package.path = arg[1] .. "/?.lua;" .. package.path
 local files = arg[2]
@@ -33,16 +36,39 @@ local function quote(text)
   return "'" .. text:gsub("'", "'\\''") .. "'"
 end
 
-local started, answer, asked
+local started, answer, asked, alerted
+json_files = {}
 hs = {
   urlevent = {},
   focus = function() end,
+  alert = {
+    show = function(text)
+      alerted = text
+    end,
+  },
+  -- A real parser is not needed: the test writes one of the files below
+  -- and the stub answers for it, failing on anything else, as hs.json does.
+  json = {
+    read = function(path)
+      local file = io.open(path)
+      local text = file:read("*a")
+      file:close()
+      local parsed = json_files[text]
+      if not parsed then
+        error("invalid JSON")
+      end
+      return parsed
+    end,
+  },
   fs = {
     pathToAbsolute = function(path)
       path = path:gsub("^~", os.getenv("HOME"))
       return sh("realpath " .. quote(path) .. " 2>/dev/null")
     end,
-    attributes = function(path)
+    attributes = function(path, field)
+      if field then
+        return sh("stat -f %m " .. quote(path) .. " 2>/dev/null")
+      end
       local out = sh("stat -f '%HT|%Sp' " .. quote(path) .. " 2>/dev/null")
       if not out then
         return nil
@@ -159,6 +185,41 @@ click(K .. "file%3A%2F%2Fexample.com" .. files:gsub("/", "%%2F") .. "%2Ftrusted%
 expect("a file:// on another host asks", asked and not started)
 
 katapult.trusted_paths[1] = nil
+
+local config = os.getenv("XDG_CONFIG_HOME") .. "/katapult/config.json"
+local function write_config(text, parsed)
+  json_files[text] = parsed
+  local file = io.open(config, "w")
+  file:write(text)
+  file:close()
+end
+
+write_config("{schemes}", { trusted_schemes = { "X-Config" } })
+click(K .. "x-config%3A%2F%2Fa", "Cancel")
+expect("a scheme from config.json opens without asking", not asked and started)
+
+write_config("{paths}", { trusted_paths = { files .. "/link", 3 } })
+click(file_link(files .. "/trusted/sub/page.html"), "Cancel")
+expect("a path from config.json opens without asking", not asked and started)
+click(file_link(files .. "/other/page.html"), "Cancel")
+expect("a path outside config.json's asks", asked and not started)
+
+write_config("{nothing}", {})
+click(file_link(files .. "/trusted/sub/page.html"), "Cancel")
+expect("an edited config.json applies on the next click", asked and not started)
+
+alerted = nil
+write_config("not json")
+click(K .. "x-config%3A%2F%2Fa", "Cancel")
+expect(
+  "a broken config.json trusts nothing and says so",
+  asked and not started and alerted and alerted:find("not valid JSON")
+)
+alerted = nil
+click(K .. "x-config%3A%2F%2Fa", "Cancel")
+expect("a broken config.json says so only once", asked and not alerted)
+
+os.remove(config)
 
 click(K .. "not%20a%20uri")
 expect(

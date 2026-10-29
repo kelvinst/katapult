@@ -45,6 +45,48 @@ local TRUSTED_SCHEMES = {}
 -- an app, a script, anything executable — still asks, wherever it is.
 local TRUSTED_PATHS = {}
 
+-- Both lists can also live in a config file, read again on every click so
+-- an edit applies without reloading Hammerspoon:
+--
+--   { "trusted_schemes": ["x-things"], "trusted_paths": ["~/Notes"] }
+local CONFIG_PATH = (
+  os.getenv("XDG_CONFIG_HOME") or (os.getenv("HOME") .. "/.config")
+) .. "/katapult/config.json"
+
+-- The strings in a config value, ignoring anything else in it.
+local function strings(list)
+  local out = {}
+  for _, item in ipairs(type(list) == "table" and list or {}) do
+    if type(item) == "string" then
+      table.insert(out, item)
+    end
+  end
+  return out
+end
+
+-- The config file's lists, empty when there is no file. A file that does not
+-- parse trusts nothing and says so, once per broken version of it.
+local config_warned
+local function config()
+  if not hs.fs.attributes(CONFIG_PATH) then
+    return {}, {}
+  end
+  local ok, data = pcall(hs.json.read, CONFIG_PATH)
+  if not ok or type(data) ~= "table" then
+    local stamp = hs.fs.attributes(CONFIG_PATH, "modification")
+    if config_warned ~= stamp then
+      config_warned = stamp
+      hs.alert.show("Katapult: " .. CONFIG_PATH .. " is not valid JSON")
+    end
+    return {}, {}
+  end
+  local schemes = {}
+  for _, scheme in ipairs(strings(data.trusted_schemes)) do
+    schemes[scheme:lower()] = true
+  end
+  return schemes, strings(data.trusted_paths)
+end
+
 -- Extensions `open` launches or runs instead of showing.
 local LAUNCHED_EXTENSIONS = {
   app = true,
@@ -208,8 +250,8 @@ local function file_path(uri)
 end
 
 -- Whether a file:// URI opens without asking: an existing file under one of
--- TRUSTED_PATHS that `open` would show rather than run.
-local function trusted_file(uri)
+-- `folders` that `open` would show rather than run.
+local function trusted_file(uri, folders)
   local path = file_path(uri)
   if not path then
     return false
@@ -226,7 +268,7 @@ local function trusted_file(uri)
   then
     return false
   end
-  for _, folder in ipairs(TRUSTED_PATHS) do
+  for _, folder in ipairs(folders) do
     local root = hs.fs.pathToAbsolute(folder)
     if root and (path == root or path:sub(1, #root + 1) == root .. "/") then
       return true
@@ -267,8 +309,13 @@ local function opener(url)
     elseif scheme == "http" or scheme == "https" then
       return OPEN_LINK, BROWSER_BUNDLE_ID, target
     elseif scheme then
+      local schemes, paths = config()
+      for _, path in ipairs(TRUSTED_PATHS) do
+        table.insert(paths, path)
+      end
       local trusted = TRUSTED_SCHEMES[scheme]
-        or (scheme == "file" and trusted_file(target))
+        or schemes[scheme]
+        or (scheme == "file" and trusted_file(target, paths))
       if trusted or confirm(target) then
         return OPEN_URI, "", target
       end
