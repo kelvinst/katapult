@@ -13,6 +13,40 @@ schemes the tab closes itself right after launching, where the browser
 allows it. Script-ish schemes (`javascript:`, `data:`,
 `vbscript:`, `blob:`, `file:`) are refused.
 
+## Install
+
+The `katapult` command and the Hammerspoon spoon ship together.
+
+With [Homebrew](https://brew.sh):
+
+```sh
+brew tap kelvinst/katapult https://github.com/kelvinst/katapult
+brew install kelvinst/katapult/katapult
+```
+
+With [mise](https://mise.jdx.dev):
+
+```sh
+mise use -g github:kelvinst/katapult
+```
+
+`katapult` needs `python3` on the PATH (macOS ships one).
+
+## `katapult`: print Katapult links
+
+```sh
+katapult 'obsidian://open?vault=Notes&file=Inbox'
+# https://kelvinst.github.io/katapult/#obsidian%3A%2F%2Fopen%3Fvault%3DNotes%26file%3DInbox
+
+katapult note Notes Inbox 'Projects#Next steps'
+# [Inbox](https://kelvinst.github.io/katapult/#…)
+# [Projects › Next steps](https://kelvinst.github.io/katapult/#…)
+```
+
+`katapult <uri>...` prints one Katapult URL per URI. `katapult note <vault>
+<name>[#heading]...` prints a Markdown link per Obsidian note, opening it in a
+new tab.
+
 ## katapult-spoon: open Katapult links without the page
 
 On a Mac, `katapult-spoon.lua` makes Hammerspoon the handler of every http(s)
@@ -31,40 +65,52 @@ and opens it itself, offline included.
 It needs [Hammerspoon](https://www.hammerspoon.org), AeroSpace and Google
 Chrome (`BROWSER_BUNDLE_ID` names the browser).
 
-### Install
+### Setup
 
-1. Copy the file into Hammerspoon's config:
-
-   ```sh
-   cp katapult-spoon.lua ~/.hammerspoon/
-   ```
-
-2. Load it from `~/.hammerspoon/init.lua`, into a global — it keeps running
-   tasks that a local would let Lua collect:
+1. Load it from `~/.hammerspoon/init.lua`, into a global — it keeps running
+   tasks that a local would let Lua collect. Point `package.path` at where
+   the package manager put it:
 
    ```lua
    require("hs.ipc") -- lets the `hs` CLI talk to Hammerspoon
+   -- Homebrew:
+   package.path = package.path .. ";/opt/homebrew/opt/katapult/share/katapult/?.lua"
+   -- mise: the folder `mise where github:kelvinst/katapult` prints, plus /share/katapult
    katapult = require("katapult-spoon")
    ```
 
-3. Reload Hammerspoon, then make it the default handler for http and https
+   Without a package manager, copy `katapult-spoon.lua` into `~/.hammerspoon/`
+   and skip the `package.path` line.
+
+2. Reload Hammerspoon, then make it the default handler for http and https
    (macOS asks to confirm):
 
    ```sh
    hs -c 'hs.urlevent.setDefaultHandler("http")'
    ```
 
-4. Optionally, trust schemes you click often, so they open without asking:
+3. Optionally, trust schemes you click often, so they open without asking,
+   right after the `require` in `init.lua`:
 
    ```lua
-   local TRUSTED_SCHEMES = { ["x-things"] = true }
+   katapult.trusted_schemes["x-things"] = true
    ```
 
-### Tests
+## Tests
 
 ```sh
+bash test/katapult-test.sh
 bash test/katapult-spoon-test.sh
 ```
 
-They load the file under a stub `hs`, so nothing opens. They need `lua` or
-`luajit` on the PATH.
+The spoon's tests load it under a stub `hs`, so nothing opens. They need
+`lua` or `luajit` on the PATH.
+
+## Releasing
+
+```sh
+script/release 0.2.0
+```
+
+Builds the tarball Homebrew and mise install from, points
+`Formula/katapult.rb` at it, tags, pushes and uploads it to a GitHub release.

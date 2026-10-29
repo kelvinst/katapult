@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Cut a release: script/release <version>, e.g. script/release 0.2.0
+#
+# Builds the tarball every package manager installs from (bin/katapult and
+# share/katapult/katapult-spoon.lua under katapult-<version>/), points the
+# Homebrew formula at it, commits and tags that, pushes, and uploads the
+# tarball to a GitHub release. The formula's sha256 is the uploaded file's own, so it is built
+# here rather than taken from GitHub's source archive.
+set -euo pipefail
+
+version=${1:?usage: script/release <version>}
+cd "$(dirname "$0")/.."
+
+[ "$(git branch --show-current)" = main ] || { echo "not on main" >&2; exit 1; }
+[ -z "$(git status --porcelain)" ] || { echo "tree is dirty" >&2; exit 1; }
+git rev-parse -q --verify "refs/tags/v$version" >/dev/null &&
+  { echo "v$version already exists" >&2; exit 1; }
+
+bash test/katapult-test.sh >/dev/null
+bash test/katapult-spoon-test.sh >/dev/null
+
+dist=$(mktemp -d)
+stage="$dist/katapult-$version"
+mkdir -p "$stage/bin" "$stage/share/katapult"
+cp bin/katapult "$stage/bin/"
+cp katapult-spoon.lua README.md "$stage/share/katapult/"
+tarball="$dist/katapult-$version.tar.gz"
+tar -czf "$tarball" -C "$dist" "katapult-$version"
+sha=$(shasum -a 256 "$tarball" | cut -d' ' -f1)
+
+url="https://github.com/kelvinst/katapult/releases/download/v$version/katapult-$version.tar.gz"
+sed -i '' -E \
+  -e "s|^  url \".*\"|  url \"$url\"|" \
+  -e "s|^  sha256 \".*\"|  sha256 \"$sha\"|" \
+  Formula/katapult.rb
+
+git commit -q -m "chore: release v$version" Formula/katapult.rb
+git tag "v$version"
+git push -q origin main "v$version"
+gh release create "v$version" "$tarball" --title "v$version" --generate-notes
+echo "released v$version ($sha)"

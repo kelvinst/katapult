@@ -28,7 +28,7 @@ hs = {
     end,
   },
 }
-require("katapult-spoon")
+local katapult = require("katapult-spoon")
 
 local K = "https://kelvinst.github.io/katapult/#"
 local failures = 0
@@ -68,6 +68,14 @@ expect(
     and started.bundle == ""
     and started.url == "x-things://show?id=today"
 )
+
+katapult.trusted_schemes["x-things"] = true
+click(K .. "x-things%3A%2F%2Fshow", "Cancel")
+expect(
+  "a trusted scheme opens without asking",
+  not asked and started.url == "x-things://show"
+)
+katapult.trusted_schemes["x-things"] = nil
 
 click(K .. "shortcuts%3A%2F%2Frun-shortcut%3Fname%3Dx", "Cancel")
 expect("another scheme declined opens nothing", asked and not started)

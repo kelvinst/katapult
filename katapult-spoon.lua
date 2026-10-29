@@ -34,7 +34,8 @@ local KATAPULT_PREFIX = "https://kelvinst.github.io/katapult/#"
 -- content an agent read, not only from us, and a scheme can make its app do
 -- anything it exposes (`shortcuts://run-shortcut`, say), so any other scheme
 -- asks first — the job the Katapult page itself does in a browser.
--- obsidian:// is not listed: it has its own opener below.
+-- obsidian:// is not listed: it has its own opener below. Exported, so
+-- init.lua adds to it: `katapult.trusted_schemes["x-things"] = true`.
 local TRUSTED_SCHEMES = {}
 
 -- $0 is a throwaway shell name, $1 the bundle id, $2 the URL — passed as
@@ -252,4 +253,4 @@ function hs.urlevent.httpCallback(_scheme, _host, _params, fullURL)
   task:start()
 end
 
-return { running = running }
+return { running = running, trusted_schemes = TRUSTED_SCHEMES }
