@@ -57,8 +57,10 @@ and opens it itself, offline included.
   [AeroSpace](https://github.com/nikitabobko/AeroSpace) workspace, in a new
   tab (a new window when that workspace has none).
 - `http(s)://` goes to the browser, unwrapped.
-- A scheme listed in `TRUSTED_SCHEMES` opens straight away; any other one asks
-  first, in an alert that shows the URI (Cancel is the default).
+- A scheme in `trusted_schemes`, and a `file://` link to a file under one of
+  `trusted_paths`, open straight away; anything else asks first, in an alert
+  that shows the URI (Cancel is the default). A file `open` would run rather
+  than show — an app, a script, anything executable — always asks.
 - Every other link goes to the browser too, into a window on the focused
   workspace rather than whichever one the browser focused last.
 
@@ -94,6 +96,13 @@ Chrome (`BROWSER_BUNDLE_ID` names the browser).
 
    ```lua
    katapult.trusted_schemes["x-things"] = true
+   ```
+
+   And folders whose files `file://` links open without asking (everything
+   below each folder; symlinks resolved, so `/tmp` is `/private/tmp`):
+
+   ```lua
+   table.insert(katapult.trusted_paths, "~/Notes")
    ```
 
 ## Tests

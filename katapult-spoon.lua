@@ -38,6 +38,28 @@ local KATAPULT_PREFIX = "https://kelvinst.github.io/katapult/#"
 -- init.lua adds to it: `katapult.trusted_schemes["x-things"] = true`.
 local TRUSTED_SCHEMES = {}
 
+-- Folders whose files a file:// link may open without asking, each one
+-- covering everything below it: `table.insert(katapult.trusted_paths,
+-- "~/Notes")`. Symlinks are resolved on both sides, so /tmp and
+-- /private/tmp are one folder. A file `open` would run rather than show —
+-- an app, a script, anything executable — still asks, wherever it is.
+local TRUSTED_PATHS = {}
+
+-- Extensions `open` launches or runs instead of showing.
+local LAUNCHED_EXTENSIONS = {
+  app = true,
+  command = true,
+  tool = true,
+  terminal = true,
+  workflow = true,
+  pkg = true,
+  mpkg = true,
+  scpt = true,
+  scptd = true,
+  applescript = true,
+  shortcut = true,
+}
+
 -- $0 is a throwaway shell name, $1 the bundle id, $2 the URL — passed as
 -- argv rather than interpolated so URLs never reach the shell as code.
 -- Hammerspoon inherits launchd's bare PATH, so `aerospace` is not on it;
@@ -175,6 +197,44 @@ local function percent_decode(text)
   )
 end
 
+-- The resolved local path of a file:// URI (file:///p or file://localhost/p),
+-- or nil for any other host or a path that does not exist.
+local function file_path(uri)
+  local host, path = uri:match("^[Ff][Ii][Ll][Ee]://([^/]*)(/[^?#]*)")
+  if not path or (host ~= "" and host:lower() ~= "localhost") then
+    return nil
+  end
+  return hs.fs.pathToAbsolute(percent_decode(path))
+end
+
+-- Whether a file:// URI opens without asking: an existing file under one of
+-- TRUSTED_PATHS that `open` would show rather than run.
+local function trusted_file(uri)
+  local path = file_path(uri)
+  if not path then
+    return false
+  end
+  local ext = path:match("%.([%w]+)/?$")
+  if ext and LAUNCHED_EXTENSIONS[ext:lower()] then
+    return false
+  end
+  local attrs = hs.fs.attributes(path)
+  if
+    not attrs
+    or attrs.mode ~= "file"
+    or attrs.permissions:find("x", 1, true)
+  then
+    return false
+  end
+  for _, folder in ipairs(TRUSTED_PATHS) do
+    local root = hs.fs.pathToAbsolute(folder)
+    if root and (path == root or path:sub(1, #root + 1) == root .. "/") then
+      return true
+    end
+  end
+  return false
+end
+
 -- Hands a Katapult target to whatever app macOS has for its scheme. $1 is
 -- unused, kept so every script takes the same arguments; $2 is the URI.
 local OPEN_URI = [[
@@ -195,8 +255,8 @@ end
 -- The script and arguments that open `url`, or nothing when the click was
 -- declined. A Katapult link opens its target here: obsidian:// through
 -- OPEN_OBSIDIAN, http(s) through the browser like any other link, a trusted
--- scheme straight away, and any other scheme once confirmed. Everything
--- else goes to the browser.
+-- scheme or a file under a trusted path straight away, and anything else
+-- once confirmed. Everything else goes to the browser.
 local function opener(url)
   if url:sub(1, #KATAPULT_PREFIX) == KATAPULT_PREFIX then
     local target = percent_decode(url:sub(#KATAPULT_PREFIX + 1))
@@ -207,7 +267,9 @@ local function opener(url)
     elseif scheme == "http" or scheme == "https" then
       return OPEN_LINK, BROWSER_BUNDLE_ID, target
     elseif scheme then
-      if TRUSTED_SCHEMES[scheme] or confirm(target) then
+      local trusted = TRUSTED_SCHEMES[scheme]
+        or (scheme == "file" and trusted_file(target))
+      if trusted or confirm(target) then
         return OPEN_URI, "", target
       end
       return nil
@@ -253,4 +315,8 @@ function hs.urlevent.httpCallback(_scheme, _host, _params, fullURL)
   task:start()
 end
 
-return { running = running, trusted_schemes = TRUSTED_SCHEMES }
+return {
+  running = running,
+  trusted_schemes = TRUSTED_SCHEMES,
+  trusted_paths = TRUSTED_PATHS,
+}
