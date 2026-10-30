@@ -53,9 +53,9 @@ On a Mac, `katapult-spoon.lua` makes Hammerspoon the handler of every http(s)
 link, so a Katapult link never loads the page: Hammerspoon unwraps the target
 and opens it itself, offline included.
 
-- `obsidian://` opens the note in an Obsidian window on the focused
-  [AeroSpace](https://github.com/nikitabobko/AeroSpace) workspace, in a new
-  tab (a new window when that workspace has none).
+- `obsidian://` opens the note in a new tab of Obsidian's main window,
+  focusing it on whichever [AeroSpace](https://github.com/nikitabobko/AeroSpace)
+  workspace it lives.
 - `http(s)://` goes to the browser, unwrapped.
 - A scheme in `trusted_schemes`, and a `file://` link to a file under one of
   `trusted_paths`, open straight away; anything else asks first, in an alert

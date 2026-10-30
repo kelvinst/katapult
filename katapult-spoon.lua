@@ -164,13 +164,15 @@ else
 fi
 ]]
 
--- Obsidian's own handler raises whichever of its windows was focused last —
--- often on another workspace or monitor, the very jump OPEN_LINK avoids for
--- the browser. Same answer: with an Obsidian window on the focused workspace,
--- focus it and open the note there in a new tab; with none, open the note in
--- a new pop-out window (or, with none open at all, its main one), which
--- aerospace puts on the focused workspace. $1 is the bundle id, $2 the
--- obsidian:// URL.
+-- Every note opens in a new tab of Obsidian's main window, wherever that
+-- window lives: one window, its tabs the only place notes pile up, rather
+-- than a pop-out on every workspace a link was clicked from. Obsidian's own
+-- handler would use whichever of its windows was focused last, a pop-out
+-- included, so focus the main one first — the oldest window of the link's
+-- vault, so the lowest aerospace window id — and aerospace follows it to its
+-- workspace. With no
+-- window open at all, Obsidian opens its main one. $1 is the bundle id, $2
+-- the obsidian:// URL.
 local OPEN_OBSIDIAN = [[
 exec </dev/null
 
@@ -179,15 +181,16 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
 # Our links carry their own paneType; this script picks it instead.
 url=$(printf '%s' "$2" | sed -E 's/&paneType=[^&]*//')
 
-focused=$(aerospace list-windows --focused \
-  --format '%{window-id} %{app-bundle-id}' 2>/dev/null)
-case "$focused" in
-*" $1") window_id=${focused%% *} ;;
-*)
-  window_id=$(aerospace list-windows --workspace focused --app-bundle-id "$1" \
-    --format '%{window-id}' 2>/dev/null | head -n1)
-  ;;
-esac
+# The link's vault window first — its title ends " - <vault> - Obsidian
+# <version>" — so a second vault open in its own window keeps its hands off.
+vault=$(printf '%s' "$url" | sed -nE 's/.*[?&]vault=([^&]*).*/\1/p' |
+  sed 's/+/ /g; s/%20/ /g')
+windows=$(aerospace list-windows --monitor all --app-bundle-id "$1" \
+  --format '%{window-id} %{window-title}' 2>/dev/null | sort -n)
+window_id=$(printf '%s\n' "$windows" | grep -F " - $vault - Obsidian" |
+  head -n1 | cut -d' ' -f1)
+[ -n "$window_id" ] || window_id=$(printf '%s\n' "$windows" | head -n1 |
+  cut -d' ' -f1)
 
 if [ -n "$window_id" ]; then
   aerospace focus --window-id "$window_id" 2>/dev/null || :
@@ -200,34 +203,9 @@ if [ -n "$window_id" ]; then
     esac
     sleep 0.05
   done
-
-  open -g "$url&paneType=tab"
-else
-  # `-g` keeps macOS from activating Obsidian, which would raise its last
-  # window and drag the focus — and the new pop-out — over there.
-  before=$(aerospace list-windows --monitor all --app-bundle-id "$1" \
-    --format '%{window-id}' 2>/dev/null)
-  # With no Obsidian window anywhere, its main window is the new one; asking
-  # for a pop-out too would open the note twice.
-  if [ -n "$before" ]; then
-    pane=window
-  else
-    pane=tab
-  fi
-  open -g "$url&paneType=$pane"
-
-  # Focus the pop-out once it shows up, up to two seconds.
-  for _ in $(seq 40); do
-    new=$(aerospace list-windows --monitor all --app-bundle-id "$1" \
-      --format '%{window-id}' 2>/dev/null |
-      grep -vxF "$before" | head -n1)
-    if [ -n "$new" ]; then
-      aerospace focus --window-id "$new" 2>/dev/null || :
-      break
-    fi
-    sleep 0.05
-  done
 fi
+
+open "$url&paneType=tab"
 ]]
 
 -- Decodes %XX escapes; `+` stays as it is, since a fragment is no form.
